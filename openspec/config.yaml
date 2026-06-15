@@ -1,0 +1,158 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Laravel 13, PHP 8.4, Livewire 3, Volt 1, Flux UI Free, Tailwind CSS v4
+  Server: Laravel Herd (local development server)
+  Database: MySQL 8
+  Auth: Laravel Fortify (login, register, email verification, 2FA)
+  UI: Livewire Volt (single-file components) + Flux UI components
+  AI: laravel/ai v0.8.1 (agents, structured output, tools, conversation memory)
+  RAG: Jina embeddings + PHP cosine similarity (no vector DB)
+  Domain: HR/CV pre-selection with AI
+
+  Frontend conventions: Volt single-file components, Flux components for all UI elements,
+  French language throughout, responsive design
+
+  Single user role: RH Agent
+  All data is user-scoped (user_id on offres, candidates, analyses)
+
+  Core features:
+  - Job offer management (CRUD)
+  - PDF CV upload + RAG ingestion (chunk, embed, store)
+  - AI-powered CV analysis (structured JSON output: score, skills, gaps, recommendation)
+  - Typed recommendation: Convoquer / Attente / Rejeter
+  - Conversational assistant with tools + conversation memory
+
+rules:
+  proposal:
+    - Keep proposals focused on one feature
+    - Always include the AI flow (which agent, which tools, schema)
+    - Define the structured output schema if HasStructuredOutput is used
+    - Specify which tools the assistant needs
+  design:
+    - Use Livewire Volt (.blade.php) for all pages
+    - Use Flux UI components whenever available
+    - Use laravel/ai SDK for all AI features (NO custom AiGateway)
+    - Models use Eloquent casts for JSON columns
+    - Use Enums with TitleCase keys (Recommandation::Convoquer)
+    - Routes and URLs use kebab-case (job-offers, candidate-analysis)
+    - Methods and functions use camelCase (getAnalysisDetails, submitCandidateCV)
+    - Database columns and relationships use snake_case (matching_score, required_skills)
+    - Controllers and services use PascalCase (CandidateAnalysisController, RagService)
+    - Blade files use kebab-case (candidate-analysis.blade.php, job-offer-card.blade.php)
+  tasks:
+    - Break into: Migration > Model > Agent/Tool/Service > Volt Page > Tests
+    - Max 2 hours per task
+    - Run pint after code changes
+    - Write Pest tests for each feature
+  ai_agents:
+    structured_output: "Use HasStructuredOutput interface + schema() method. opis/json-schema validates the return. Required fields: matching_score (0-100), skills, gaps, recommendation (convoquer/attente/rejeter), justification."
+    tools: "Use HasTools interface + php artisan make:tool. Tools query real DB data, never invent."
+    conversation_memory: "Use RemembersConversations trait. Do NOT define custom messages() method — trait handles it."
+    agent_location: "App/Ai/Agents/"
+    tool_location: "App/Ai/Tools/"
+  rag:
+    chunk_size: 500 words
+    chunk_overlap: 100 words
+    embedding_provider: "Jina AI (jina-embeddings-v3)"
+    embedding_dimensions: 1024
+    similarity_metric: "cosine"
+    min_similarity: 0.35
+    top_k: 50
+    vector_db: "None — brute-force cosine similarity in PHP (fine for <100 CVs per offer)"
+    document_storage: "local disk (storage/app/pdfs/)"
+    extraction: "smalot/pdfparser for PDF text extraction"
+  data_models:
+    indexing: "Add index on user_id, offre_id, document_id, candidate_id"
+    timestamps: "Always use timestamps() on all tables"
+    foreign_keys: "Use foreignId()->constrained()->cascadeOnDelete()"
+    json_columns: "Cast to array in model (required_skills, extracted_skills, languages, etc.)"
+    enums: "Use PHP backed enums with TitleCase. Cast in model via ->enum(Recommandation::class)"
+  routing:
+    url_pattern: "kebab-case, plural (offers, candidates, analyses)"
+    examples:
+      - "/offers"
+      - "/offers/create"
+      - "/offers/{offer}"
+      - "/candidates/submit"
+      - "/analyses/{analysis}"
+      - "/assistant/{conversation?}"
+    locale: "English"
+    naming_routes: "Always use named routes with English slugs"
+    route_parameters: "Use route model binding — singular model name (offer, candidate, analysis), not IDs"
+    middleware: "auth middleware on all routes"
+    livewire_routing: "Use Route::get with Livewire component class"
+  validation:
+    required_by_default: true
+    rules:
+      - title: string, max:255
+      - name: string, max:255
+      - email: email, max:255
+      - description: string, max:5000
+      - required_skills: array, min:1
+      - cv_pdf: file, mimes:pdf, max:10240
+    error_format: "Flux UI inline errors on each field"
+  testing:
+    framework: "Pest v4"
+    types:
+      feature: "Test complete workflows (offer CRUD, CV submit, analysis display)"
+      unit: "Test services (Chunker, VectorSearch), enums, casts"
+      ai_fake: "Use Agent::fake(), Tool::fake() — never hit real API"
+    database: "Use RefreshDatabase trait"
+    factories: "Create factories for Offre, Candidate, Analyse, Document, DocumentChunk"
+    pattern: "Arrange > Act > Assert"
+  git:
+    workflow: trunk-based
+    main-branch: main
+    commit-convention: conventional-commits
+    commit-types:
+      - feat: New feature
+      - fix: Bug fix
+      - refactor: Code refactoring
+      - test: Adding tests
+      - chore: Maintenance
+      - style: Code formatting (pint)
+      - docs: Documentation
+      - spec: Spec artifacts
+    rules:
+      - Run pint before commit
+      - Run tests before commit
+      - One logical change per commit
+      - Reference OpenSpec change if applicable
+  dod:
+    definition: "A feature is DONE when ALL criteria below are met"
+    criteria:
+      - Migration runs without errors
+      - Model has correct relationships + casts + factories
+      - Agent/tool returns correct data (tested with fake)
+      - Volt page renders without errors
+      - CRUD operations work
+      - User scoping works (only own data visible)
+      - Form validation works
+      - Flash messages for success/error feedback
+      - Responsive on mobile and desktop
+      - Pest tests pass
+      - Pint formatting applied
+      - No dd(), dump(), or debug code
+      - No hardcoded values (use config or env)
+  dssms:
+    description: "All features must follow DSSMS principles"
+    dynamic:
+      - Real-time analysis status via polling or broadcast
+      - Reactive chat interface without page reloads
+    stable:
+      - Pest tests for every feature
+      - Handle AI API failures gracefully (timeout, rate limit)
+      - Validate all inputs server-side
+    scalable:
+      - Queue CV analysis in background job
+      - Paginate lists (offers, candidates)
+      - Index foreign keys
+    maintainable:
+      - Follow Laravel conventions
+      - Keep Volt components lean, extract logic to Services/Agents
+      - Descriptive naming (not abbreviations)
+    secure:
+      - User scoping on all queries (auth()->user())
+      - CSRF on all forms (Livewire handles)
+      - Validate file uploads (type, size)
