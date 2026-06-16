@@ -7,21 +7,56 @@ context: |
   Auth: Laravel Fortify (login, register, email verification, 2FA)
   UI: Livewire Volt (single-file components) + Flux UI components
   AI: laravel/ai v0.8.1 (agents, structured output, tools, conversation memory)
-  RAG: Jina embeddings + PHP cosine similarity (no vector DB)
+  CV Processing: PDF extraction + text chunking for AI analysis (no vector search)
   Domain: HR/CV pre-selection with AI
 
   Frontend conventions: Volt single-file components, Flux components for all UI elements,
   French language throughout, responsive design
 
   Single user role: RH Agent
-  All data is user-scoped (user_id on offres, candidates, analyses)
+  All data is user-scoped (user_id on offers, candidates, analyses)
 
   Core features:
-  - Job offer management (CRUD)
-  - PDF CV upload + RAG ingestion (chunk, embed, store)
+  - Job offer management (CRUD + archive/restore/force delete)
+  - PDF CV upload + text extraction + chunking for AI context
   - AI-powered CV analysis (structured JSON output: score, skills, gaps, recommendation)
   - Typed recommendation: Convoquer / Attente / Rejeter
   - Conversational assistant with tools + conversation memory
+
+app_flow: |
+  ## HR-Assistant Application Flow
+
+  ### 1. Authentication
+  RH agent logs in via Fortify (register, login, 2FA).
+
+  ### 2. Create Job Offer
+  RH creates an offer with: title, description, responsibilities, required skills,
+  soft skills, experience level, education level, employment type, location.
+
+  ### 3. Upload CV
+  RH uploads a PDF CV for a specific candidate against a specific offer.
+  - If candidate is new → creates candidate record
+  - Creates application record (candidate + offer + document)
+  - Dispatches AnalyseCVJob to queue
+
+  ### 4. CV Processing + AI Analysis (background job)
+  a. PDF → text extraction (smalot/pdfparser)
+  b. Text → chunks (stored in document_chunks)
+  c. Agent reads chunks + offer requirements
+  d. Agent returns structured JSON (score, skills, gaps, recommendation)
+  e. Analysis saved in DB linked to application
+
+  ### 5. View Analysis
+  RH sees: score (0-100), recommendation badge (Convoquer/Attente/Rejeter),
+  extracted skills, strengths, gaps, missing skills, justification.
+
+  ### 6. Chat with Assistant
+  RH opens a conversation in the context of an offer.
+  - Agent loads all analyses for that offer from DB
+  - Agent has full context: offer requirements + all candidate scores
+  - RH asks questions naturally: "why this score?", "compare Ahmed vs Fatima",
+    "which candidates should I interview?"
+  - Agent answers from real DB data via tools, never invents.
 
 rules:
   proposal:
@@ -51,19 +86,14 @@ rules:
     conversation_memory: "Use RemembersConversations trait. Do NOT define custom messages() method — trait handles it."
     agent_location: "App/Ai/Agents/"
     tool_location: "App/Ai/Tools/"
-  rag:
-    chunk_size: 500 words
-    chunk_overlap: 100 words
-    embedding_provider: "Jina AI (jina-embeddings-v3)"
-    embedding_dimensions: 1024
-    similarity_metric: "cosine"
-    min_similarity: 0.35
-    top_k: 50
-    vector_db: "None — brute-force cosine similarity in PHP (fine for <100 CVs per offer)"
-    document_storage: "local disk (storage/app/pdfs/)"
+  cv_processing:
+    description: "Extract text from PDF CVs and chunk for AI analysis"
     extraction: "smalot/pdfparser for PDF text extraction"
+    chunking: "Split into readable chunks for agent context"
+    storage: "Chunks stored in document_chunks table (text only, no embeddings)"
+    purpose: "Make CV content readable for AI agent to produce structured analysis"
   data_models:
-    indexing: "Add index on user_id, offre_id, document_id, candidate_id"
+    indexing: "Add index on user_id, offer_id, document_id, candidate_id"
     timestamps: "Always use timestamps() on all tables"
     foreign_keys: "Use foreignId()->constrained()->cascadeOnDelete()"
     json_columns: "Cast to array in model (required_skills, extracted_skills, languages, etc.)"
@@ -96,10 +126,10 @@ rules:
     framework: "Pest v4"
     types:
       feature: "Test complete workflows (offer CRUD, CV submit, analysis display)"
-      unit: "Test services (Chunker, VectorSearch), enums, casts"
+      unit: "Test services (Chunker, PdfExtractor), enums, casts"
       ai_fake: "Use Agent::fake(), Tool::fake() — never hit real API"
     database: "Use RefreshDatabase trait"
-    factories: "Create factories for Offre, Candidate, Analyse, Document, DocumentChunk"
+    factories: "Create factories for Offer, Candidate, Analysis, Document, DocumentChunk"
     pattern: "Arrange > Act > Assert"
   git:
     workflow: trunk-based
