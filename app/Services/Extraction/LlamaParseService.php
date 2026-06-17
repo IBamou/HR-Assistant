@@ -26,7 +26,7 @@ class LlamaParseService
      * Parse a PDF file using LlamaParse and return structured candidate data.
      * Blocks synchronously (used in non-queue contexts like debug routes).
      *
-     * @return array{status: string, data?: array, error?: string}
+     * @return array{status: string, data?: array<string, mixed>, error?: string}
      */
     public function parsePdf(string $filePath): array
     {
@@ -75,9 +75,9 @@ class LlamaParseService
     }
 
     /**
-     * Check the status of a parse job. Single request, non-blocking.
+     * Poll job status until completion, failure, or timeout.
      *
-     * @return array{status: string, result?: string, error?: string, raw?: array}
+     * @return array{status: string, result?: string, error?: string, raw?: array<mixed>}
      */
     public function checkJobStatus(string $jobId): array
     {
@@ -139,6 +139,7 @@ class LlamaParseService
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
+        /** @var string $response */
         $data = json_decode($response, true);
 
         if ($httpCode >= 400 || empty($data['id'])) {
@@ -167,6 +168,9 @@ class LlamaParseService
         return $response->json('id');
     }
 
+    /**
+     * @return array{status: string, result?: string, error?: string, raw?: array<mixed>}
+     */
     private function pollJob(string $jobId, int $maxAttempts = 30, int $delayMs = 2000): array
     {
         for ($i = 0; $i < $maxAttempts; $i++) {
@@ -188,6 +192,9 @@ class LlamaParseService
         return ['status' => 'timeout', 'error' => 'LlamaParse timed out'];
     }
 
+    /**
+     * @param  array<mixed>  $data
+     */
     private function extractMarkdown(array $data): string
     {
         if (isset($data['markdown_full']) && is_string($data['markdown_full'])) {

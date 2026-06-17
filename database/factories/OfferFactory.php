@@ -27,12 +27,12 @@ class OfferFactory extends Factory
             'title' => $title,
             'description' => fake()->paragraph(3),
             'responsibilities' => fake()->paragraph(2),
-            'required_skills' => collect(random_int(2, 5))
+            'required_skills' => collect(range(1, random_int(2, 5)))
                 ->map(fn () => fake()->word())
                 ->unique()
                 ->values()
                 ->all(),
-            'soft_skills' => collect(random_int(1, 3))
+            'soft_skills' => collect(range(1, random_int(1, 3)))
                 ->map(fn () => fake()->randomElement(['Communication', 'Leadership', 'Teamwork', 'Problem Solving', 'Creativity', 'Adaptability']))
                 ->unique()
                 ->values()

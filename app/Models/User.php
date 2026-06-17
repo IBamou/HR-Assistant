@@ -63,6 +63,8 @@ class User extends Authenticatable implements PasskeyUser
 
     /**
      * Get the offers for the user.
+     *
+     * @return HasMany<Offer, $this>
      */
     public function offers(): HasMany
     {
