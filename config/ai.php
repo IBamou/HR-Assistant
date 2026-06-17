@@ -13,7 +13,9 @@ return [
     |
     */
 
-    'default' => 'openai',
+    'default' => env('AI_DEFAULT_PROVIDER', 'groq'),
+    'model' => env('AI_MODEL', 'meta-llama/llama-4-scout-17b-16e-instruct'),
+    'timeout' => env('AI_TIMEOUT', 120),
     'default_for_images' => 'gemini',
     'default_for_audio' => 'openai',
     'default_for_transcription' => 'openai',
@@ -101,6 +103,7 @@ return [
         'groq' => [
             'driver' => 'groq',
             'key' => env('GROQ_API_KEY'),
+            'url' => env('GROQ_BASE_URL', 'https://api.groq.com/openai/v1'),
         ],
 
         'jina' => [

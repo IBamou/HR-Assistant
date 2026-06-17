@@ -1,5 +1,6 @@
 <?php
 
+use App\Concerns\ManagesSkills;
 use App\Enums\EmploymentType;
 use App\Enums\ExperienceLevel;
 use App\Http\Requests\Offer\OfferUpdateRequest;
@@ -8,7 +9,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Livewire\Volt\Component;
 
 new class extends Component {
-    use AuthorizesRequests;
+    use AuthorizesRequests, ManagesSkills;
 
     public Offer $offer;
     public string $title = '';
@@ -37,34 +38,6 @@ new class extends Component {
         $this->education_level = $offer->education_level;
         $this->employment_type = $offer->employment_type;
         $this->location = $offer->location;
-    }
-
-    public function addRequiredSkill(): void
-    {
-        $skill = trim($this->new_skill ?? '');
-        if ($skill !== '' && !in_array($skill, $this->required_skills)) {
-            $this->required_skills[] = $skill;
-            $this->new_skill = null;
-        }
-    }
-
-    public function removeRequiredSkill(string $skill): void
-    {
-        $this->required_skills = array_values(array_filter($this->required_skills, fn ($s) => $s !== $skill));
-    }
-
-    public function addSoftSkill(): void
-    {
-        $skill = trim($this->new_soft_skill ?? '');
-        if ($skill !== '' && !in_array($skill, $this->soft_skills)) {
-            $this->soft_skills[] = $skill;
-            $this->new_soft_skill = null;
-        }
-    }
-
-    public function removeSoftSkill(string $skill): void
-    {
-        $this->soft_skills = array_values(array_filter($this->soft_skills, fn ($s) => $s !== $skill));
     }
 
     public function update(): void
@@ -125,14 +98,16 @@ new class extends Component {
 
                 @if (count($required_skills) > 0)
                     <div class="flex flex-wrap gap-2">
-                        @foreach ($required_skills as $skill)
+                        @foreach ($required_skills as $index => $skill)
                             <flux:badge color="indigo" size="sm">
                                 {{ $skill }}
-                                <button type="button" wire:click="removeRequiredSkill('{{ $skill }}')" class="ml-1 text-indigo-300 hover:text-white">&times;</button>
+                                <button type="button" wire:click="removeRequiredSkill({{ $index }})" class="ml-1 text-indigo-300 hover:text-white">&times;</button>
                             </flux:badge>
                         @endforeach
                     </div>
                 @endif
+
+                <flux:error name="required_skills" />
             </div>
         </flux:card>
 
@@ -147,10 +122,10 @@ new class extends Component {
 
                 @if (count($soft_skills) > 0)
                     <div class="flex flex-wrap gap-2">
-                        @foreach ($soft_skills as $skill)
+                        @foreach ($soft_skills as $index => $skill)
                             <flux:badge color="emerald" size="sm">
                                 {{ $skill }}
-                                <button type="button" wire:click="removeSoftSkill('{{ $skill }}')" class="ml-1 text-emerald-300 hover:text-white">&times;</button>
+                                <button type="button" wire:click="removeSoftSkill({{ $index }})" class="ml-1 text-emerald-300 hover:text-white">&times;</button>
                             </flux:badge>
                         @endforeach
                     </div>

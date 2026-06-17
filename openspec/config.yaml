@@ -6,12 +6,12 @@ context: |
   Database: MySQL 8
   Auth: Laravel Fortify (login, register, email verification, 2FA)
   UI: Livewire Volt (single-file components) + Flux UI components
-  AI: laravel/ai v0.8.1 (agents, structured output, tools, conversation memory)
-  CV Processing: PDF extraction + text chunking for AI analysis (no vector search)
+  AI: laravel/ai v0.8.1 (agents, plain prompting for Groq, tools, conversation memory)
+  CV Processing: LlamaParse primary PDF extraction + PdfExtractor fallback + AI analysis (no vector search)
   Domain: HR/CV pre-selection with AI
 
   Frontend conventions: Volt single-file components, Flux components for all UI elements,
-  French language throughout, responsive design
+  English language throughout, responsive design
 
   Single user role: RH Agent
   All data is user-scoped (user_id on offers, candidates, analyses)
@@ -35,16 +35,21 @@ app_flow: |
 
   ### 3. Upload CV
   RH uploads a PDF CV for a specific candidate against a specific offer.
-  - If candidate is new → creates candidate record
+  - File stored to local disk (storage/app/private/), Document record created
+  - Async job dispatches: LlamaParse (markdown extraction) → Groq (structured candidate data)
+  - Results polled via cache (wire:poll every 2s, 60s timeout)
+  - Pre-filled form fields shown for review (name, email, phone, summary, skills, etc.)
+  - If candidate is new → creates candidate record via updateOrCreate by email
   - Creates application record (candidate + offer + document)
   - Dispatches AnalyseCVJob to queue
 
-  ### 4. CV Processing + AI Analysis (background job)
-  a. PDF → text extraction (smalot/pdfparser)
-  b. Text → chunks (stored in document_chunks)
-  c. Agent reads chunks + offer requirements
-  d. Agent returns structured JSON (score, skills, gaps, recommendation)
-  e. Analysis saved in DB linked to application
+  ### 4. CV Processing + AI Analysis (future)
+  a. PDF → markdown extraction via LlamaParse (primary) or PdfExtractor (fallback)
+  b. Markdown text → Groq AI extraction (plain prompting → structured JSON)
+  c. Text → chunks (stored in document_chunks)
+  d. Agent reads chunks + offer requirements (future)
+  e. Agent returns structured JSON (score, skills, gaps, recommendation) (future)
+  f. Analysis saved in DB linked to application (future)
 
   ### 5. View Analysis
   RH sees: score (0-100), recommendation badge (Convoquer/Attente/Rejeter),
@@ -81,17 +86,24 @@ rules:
     - Run pint after code changes
     - Write Pest tests for each feature
   ai_agents:
-    structured_output: "Use HasStructuredOutput interface + schema() method. opis/json-schema validates the return. Required fields: matching_score (0-100), skills, gaps, recommendation (convoquer/attente/rejeter), justification."
+    structured_output: "Use HasStructuredOutput interface + schema() for providers that support it (OpenAI). For Groq, use plain prompting with Agent + instructions + manual JSON parsing via parseJsonResponse()."
     tools: "Use HasTools interface + php artisan make:tool. Tools query real DB data, never invent."
     conversation_memory: "Use RemembersConversations trait. Do NOT define custom messages() method — trait handles it."
+    plain_prompting: "For Groq: Create Agent + instructions describe JSON output shape. Use AiClient::prompt() to get raw text. Parse JSON from markdown code blocks via parseJsonResponse(). Prompts live in app/Prompts/ classes."
     agent_location: "App/Ai/Agents/"
     tool_location: "App/Ai/Tools/"
+    prompt_location: "App/Prompts/"
   cv_processing:
-    description: "Extract text from PDF CVs and chunk for AI analysis"
-    extraction: "smalot/pdfparser for PDF text extraction"
+    description: "Extract text from PDF CVs using LlamaParse primary, PdfExtractor fallback. Then extract structured candidate data via Groq AI."
+    extraction_primary: "LlamaParse v2 API (POST /api/v2/parse markdown output). Returns raw markdown text."
+    extraction_fallback: "smalot/pdfparser for PDF text extraction when LlamaParse is unavailable or times out."
+    ai_extraction: "Groq (meta-llama/llama-4-scout-17b-16e-instruct) via plain prompting. CandidateInfoExtractorPrompt class describes JSON schema. parseJsonResponse() handles markdown-wrapped JSON."
     chunking: "Split into readable chunks for agent context"
     storage: "Chunks stored in document_chunks table (text only, no embeddings)"
-    purpose: "Make CV content readable for AI agent to produce structured analysis"
+    async: "Extraction runs in ExtractCandidateInfoJob (ShouldQueue). Results cached with 300s TTL, polled by Livewire every 2s."
+    input_safeguard: "MAX_INPUT_LENGTH = 30000 characters. Larger CVs truncated with notice."
+    purpose: "Convert PDF CV → structured candidate data for analysis"
+    config: "GROQ_API_KEY, GROQ_BASE_URL, LLAMAPARSE_API_KEY, LLAMAPARSE_BASE_URL in .env. AI_DEFAULT_PROVIDER, AI_MODEL, AI_TIMEOUT for AiClient."
   data_models:
     indexing: "Add index on user_id, offer_id, document_id, candidate_id"
     timestamps: "Always use timestamps() on all tables"

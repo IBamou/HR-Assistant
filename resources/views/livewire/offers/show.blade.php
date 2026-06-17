@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Offer;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Livewire\Volt\Component;
 
@@ -10,10 +11,17 @@ new class extends Component {
     public Offer $offer;
     public bool $showArchiveModal = false;
 
+    /** @var Collection<int, \App\Models\Application> */
+    public Collection $applications;
+
     public function mount(Offer $offer): void
     {
         $this->offer = $offer;
         $this->authorize('view', $this->offer);
+        $this->applications = $this->offer->applications()
+            ->ownedByCurrentUser()
+            ->with('candidate')
+            ->get();
     }
 
     public function archive(): void
@@ -38,7 +46,10 @@ new class extends Component {
                 <flux:text class="mt-1 text-zinc-500">Created {{ $offer->created_at->diffForHumans() }}</flux:text>
             </div>
             <div class="flex items-center gap-2">
-                <flux:button href="{{ route('offers.edit', $offer) }}" variant="primary" size="sm">
+                <flux:button href="{{ route('offers.submit', $offer) }}" variant="primary" size="sm">
+                    Submit CV
+                </flux:button>
+                <flux:button href="{{ route('offers.edit', $offer) }}" variant="subtle" size="sm">
                     Edit
                 </flux:button>
                 <flux:button wire:click="$set('showArchiveModal', true)" variant="danger" size="sm">
@@ -64,7 +75,21 @@ new class extends Component {
 
             <flux:card>
                 <flux:heading size="sm" class="mb-4">Applications</flux:heading>
-                <flux:text class="text-zinc-500">No applications yet. Applications will appear here once CVs are analyzed.</flux:text>
+                @if ($applications->isEmpty())
+                    <flux:text class="text-zinc-500">No applications yet. Applications will appear here once CVs are submitted.</flux:text>
+                @else
+                    <div class="space-y-3">
+                        @foreach ($applications as $application)
+                            <div class="flex items-center justify-between border-b border-zinc-200 pb-3 last:border-0 last:pb-0 dark:border-zinc-700">
+                                <div>
+                                    <flux:text class="font-medium">{{ $application->candidate->name }}</flux:text>
+                                    <flux:text class="text-sm text-zinc-500">{{ $application->candidate->email }}</flux:text>
+                                </div>
+                                <flux:text class="text-xs text-zinc-400">{{ $application->created_at->diffForHumans() }}</flux:text>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
             </flux:card>
         </div>
 
