@@ -11,3 +11,6 @@ parameters:
         - routes/
 
     level: 7
+
+    ignoreErrors:
+        - '#Trait App\\Concerns\\ManagesSkills is used zero times and is not analysed\.#'

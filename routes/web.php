@@ -22,6 +22,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
             $request->validate(['cv' => 'required|file|mimes:pdf|max:10240']);
 
             $path = $request->file('cv')->storeAs('debug', time().'_'.$request->file('cv')->getClientOriginalName());
+
+            if ($path === false) {
+                return response()->json(['error' => 'Failed to store uploaded file'], 500);
+            }
+
             $output = [];
 
             // Step 1: LlamaParse
@@ -30,9 +35,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 $result = $llamaParse->parsePdf($path);
                 $output['llama_status'] = $result['status'];
                 if ($result['status'] === 'success') {
-                    $output['llama_data'] = $result['data'];
-                    $output['raw_keys'] = $result['data']['raw_keys'] ?? [];
-                    $extractedText = $result['data']['extracted_text'] ?? '';
+                    $output['llama_data'] = $result['data'] ?? [];
+                    $output['raw_keys'] = ($result['data'] ?? [])['raw_keys'] ?? [];
+                    $extractedText = ($result['data'] ?? [])['extracted_text'] ?? '';
                     $output['extracted_text'] = $extractedText;
                 } else {
                     $output['llama_error'] = $result['error'] ?? 'Unknown error';
@@ -49,8 +54,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 $output['fallback_used'] = true;
             }
 
-            $output['extracted_text_length'] = strlen($extractedText ?? '');
-            $output['extracted_text'] = $extractedText ?? '';
+            $output['extracted_text_length'] = strlen($extractedText);
+            $output['extracted_text'] = $extractedText;
 
             // Step 2: Groq
             if (! empty($extractedText) && strlen($extractedText) >= 50) {

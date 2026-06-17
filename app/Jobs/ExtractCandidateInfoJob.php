@@ -85,11 +85,13 @@ class ExtractCandidateInfoJob implements ShouldQueue
             if ($jobId === null) {
                 $result = $llamaParse->startParsing($this->cvPath);
 
-                if ($result['status'] === 'started') {
-                    Cache::put($llamaJobKey, $result['job_id'], 300);
+                $resultStatus = $result['status'];
+
+                if ($resultStatus === 'started' && isset($result['job_id'])) {
+                    Cache::put($llamaJobKey, (string) $result['job_id'], 300);
                 }
 
-                if ($result['status'] === 'error') {
+                if ($resultStatus === 'error') {
                     Log::warning('LlamaParse failed to start, falling back to PdfExtractor', [
                         'error' => $result['error'] ?? 'Unknown',
                     ]);
@@ -145,6 +147,9 @@ class ExtractCandidateInfoJob implements ShouldQueue
             ."\n\n[... CV content truncated at ".self::MAX_INPUT_LENGTH.' characters. Only the beginning was included for processing. ...]';
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function parseJsonResponse(string $response): array
     {
         $json = json_decode($response, true);
@@ -172,6 +177,10 @@ class ExtractCandidateInfoJob implements ShouldQueue
         return [];
     }
 
+    /**
+     * @param  array<string, mixed>  $response
+     * @return array<int, array{title: string, items: array<int, string>}>
+     */
     private function buildSections(array $response): array
     {
         $sectionMap = [
@@ -214,6 +223,10 @@ class ExtractCandidateInfoJob implements ShouldQueue
         return $sections;
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $rawPayload
+     */
     private function storeResult(array $data, string $extractedText, array $rawPayload = []): void
     {
         Cache::put($this->cacheKey, [

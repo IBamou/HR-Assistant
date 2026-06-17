@@ -2,10 +2,12 @@
 
 namespace Database\Factories;
 
+use App\Models\Analysis;
 use App\Models\Application;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
+/** @extends Factory<Analysis> */
 class AnalysisFactory extends Factory
 {
     public function definition(): array

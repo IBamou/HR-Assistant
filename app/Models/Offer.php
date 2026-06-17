@@ -19,8 +19,8 @@ use Illuminate\Support\Str;
  * @property string $title
  * @property string $description
  * @property string|null $responsibilities
- * @property array $required_skills
- * @property array|null $soft_skills
+ * @property array<int, string> $required_skills
+ * @property array<int, string>|null $soft_skills
  * @property ExperienceLevel|null $min_experience_level
  * @property string|null $education_level
  * @property EmploymentType|null $employment_type
@@ -76,7 +76,7 @@ class Offer extends Model
         });
     }
 
-    private static function generateUniqueSlug(string $title, ?int $ignoreId = null): string
+    protected static function generateUniqueSlug(string $title, ?int $ignoreId = null): string
     {
         $slug = Str::slug($title);
         $originalSlug = $slug;
@@ -99,11 +99,17 @@ class Offer extends Model
         return $slug;
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * @return HasMany<Application, $this>
+     */
     public function applications(): HasMany
     {
         return $this->hasMany(Application::class);
