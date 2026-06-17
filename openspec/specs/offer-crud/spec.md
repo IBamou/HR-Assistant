@@ -64,7 +64,7 @@ The system SHALL provide a Create page at /offers/create with a form containing 
 - **THEN** system displays validation error under the title field
 
 ### Requirement: View offer details
-The system SHALL provide a Show page at /offers/{offer} displaying all offer fields with formatted labels. Required_skills and soft_skills SHALL be displayed as colored badges. The page SHALL include Edit and Archive buttons. The page SHALL display a placeholder for candidates sorted by analysis score (descending) — actual candidate integration is a future feature.
+The system SHALL provide a Show page at /offers/{offer} displaying all offer fields with formatted labels. Required_skills and soft_skills SHALL be displayed as colored badges. The page SHALL include Edit, Archive, and Submit CV buttons. The page SHALL display a list of submitted applications with candidate name and submission date.
 
 #### Scenario: Display offer details
 - **WHEN** user navigates to /offers/{offer}
@@ -82,9 +82,13 @@ The system SHALL provide a Show page at /offers/{offer} displaying all offer fie
 - **WHEN** user clicks the Archive button
 - **THEN** system displays a confirmation modal before archiving
 
-#### Scenario: Candidate list placeholder
-- **WHEN** offer has no candidates yet (future integration)
-- **THEN** system displays empty state or hides the candidates section
+#### Scenario: Submit CV button navigation
+- **WHEN** user clicks the Submit CV button
+- **THEN** system navigates to /offers/{offer}/submit
+
+#### Scenario: Display submitted applications
+- **WHEN** offer has submitted applications
+- **THEN** system displays a list of applications with candidate name and submission date
 
 ### Requirement: Edit existing offer
 The system SHALL provide an Edit page at /offers/{offer}/edit with a pre-filled form matching the Create page layout. The form SHALL submit via PUT to update the offer and redirect to the show page.

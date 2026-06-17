@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'llamaindex' => [
+        'key' => env('LLAMAPARSE_API_KEY'),
+        'url' => env('LLAMAPARSE_BASE_URL', 'https://api.cloud.llamaindex.ai'),
+    ],
+
 ];
