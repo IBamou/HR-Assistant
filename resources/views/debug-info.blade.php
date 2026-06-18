@@ -23,8 +23,29 @@
             @else
                 <div class="space-y-6">
                     <flux:card>
-                        <flux:heading size="sm" class="mb-3">Extracted Text Length</flux:heading>
-                        <flux:text>{{ $result['extracted_text_length'] }} characters</flux:text>
+                        <flux:heading size="sm" class="mb-3">Extraction Result</flux:heading>
+                        <div class="space-y-2 text-sm">
+                            <div><span class="font-medium">Extractor:</span>
+                                @php $ext = $result['orchestrator_extractor'] ?? 'N/A'; @endphp
+                                <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium
+                                    {{ match($ext) { 'DoclingExtractor' => 'bg-sky-100 text-sky-700', 'LlamaParseExtractor' => 'bg-purple-100 text-purple-700', 'LocalPdfExtractor' => 'bg-amber-100 text-amber-700', default => 'bg-zinc-100 text-zinc-700' } }}">
+                                    @switch($ext)
+                                        @case('DoclingExtractor') @break
+                                        @case('LlamaParseExtractor') @break
+                                        @case('LocalPdfExtractor') @break
+                                    @endswitch
+                                    {{ $ext }}
+                                </span>
+                            </div>
+                            <div><span class="font-medium">Status:</span> {{ $result['orchestrator_status'] ?? 'N/A' }}</div>
+                            @if (isset($result['orchestrator_error']))
+                                <div class="text-red-600">Error: {{ $result['orchestrator_error'] }}</div>
+                            @endif
+                            @if (isset($result['orchestrator_pending']))
+                                <div class="text-amber-600">Pending — job released back to queue.</div>
+                            @endif
+                            <div><span class="font-medium">Length:</span> {{ $result['extracted_text_length'] }} characters</div>
+                        </div>
                         @if (($result['extracted_text_length'] ?? 0) < 50)
                             <div class="mt-2 rounded-lg bg-amber-50 p-3 text-amber-700 text-sm">
                                 Text too short — may be a scanned image.
@@ -33,16 +54,41 @@
                     </flux:card>
 
                     <flux:card>
-                        <flux:heading size="sm" class="mb-3">LlamaParse / Extracted Text</flux:heading>
-                        @if (isset($result['llama_error']))
-                            <div class="rounded-lg bg-red-50 p-3 text-red-700 text-sm mb-2">LlamaParse error: {{ $result['llama_error'] }}</div>
-                        @endif
-                        @if (isset($result['fallback_used']))
-                            <div class="rounded-lg bg-amber-50 p-3 text-amber-700 text-sm mb-2">Used PdfExtractor fallback.</div>
-                        @endif
-                        @if (isset($result['llama_data']['raw_keys']))
-                            <div class="mb-2 text-sm text-zinc-500">API response keys: {{ implode(', ', $result['llama_data']['raw_keys']) }}</div>
-                        @endif
+                        <flux:heading size="sm" class="mb-3">Extractors Comparison</flux:heading>
+                        <div class="space-y-3">
+                            <div class="rounded-lg border p-3">
+                                <div class="font-medium text-sm">DoclingExtractor</div>
+                                <div class="text-xs text-zinc-500">Status: {{ $result['orchestrator_status'] ?? 'N/A' }}</div>
+                                @if ($result['orchestrator_extractor'] === 'DoclingExtractor' && ($result['orchestrator_status'] ?? '') === 'completed')
+                                    <div class="text-xs text-green-600">Selected by orchestrator</div>
+                                @endif
+                            </div>
+                            <div class="rounded-lg border p-3">
+                                <div class="font-medium text-sm">LlamaParse</div>
+                                <div class="text-xs text-zinc-500">Available: {{ isset($result['llama_available']) ? ($result['llama_available'] ? 'Yes' : 'No') : 'N/A' }}</div>
+                                @if (isset($result['llama_status']))
+                                    <div class="text-xs text-zinc-500">Status: {{ $result['llama_status'] }}</div>
+                                @endif
+                                @if (isset($result['llama_error']))
+                                    <div class="text-xs text-red-600">{{ $result['llama_error'] }}</div>
+                                @endif
+                                @if (isset($result['raw_keys']))
+                                    <div class="text-xs text-zinc-400">Keys: {{ implode(', ', $result['raw_keys']) }}</div>
+                                @endif
+                            </div>
+                            <div class="rounded-lg border p-3">
+                                <div class="font-medium text-sm">LocalPdfExtractor</div>
+                                <div class="text-xs text-zinc-500">Status: {{ $result['local_extractor_status'] ?? 'N/A' }}</div>
+                                <div class="text-xs text-zinc-500">Length: {{ $result['local_extractor_length'] ?? 0 }} chars</div>
+                                @if (($result['local_extractor_truncated'] ?? '') !== '')
+                                    <pre class="mt-1 bg-zinc-50 dark:bg-zinc-800 rounded p-2 text-xs max-h-24 overflow-y-auto">{{ $result['local_extractor_truncated'] }}</pre>
+                                @endif
+                            </div>
+                        </div>
+                    </flux:card>
+
+                    <flux:card>
+                        <flux:heading size="sm" class="mb-3">Extracted Text (used for AI)</flux:heading>
                         <pre class="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-4 text-xs overflow-x-auto max-h-64 overflow-y-auto">{{ $result['extracted_text'] ?? 'N/A' }}</pre>
                     </flux:card>
 

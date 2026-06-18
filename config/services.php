@@ -35,6 +35,11 @@ return [
         ],
     ],
 
+    'docling' => [
+        'url' => env('DOCLING_SERVICE_URL', 'http://localhost:8000'),
+        'timeout' => env('DOCLING_SERVICE_TIMEOUT', 120),
+    ],
+
     'llamaindex' => [
         'key' => env('LLAMAPARSE_API_KEY'),
         'url' => env('LLAMAPARSE_BASE_URL', 'https://api.cloud.llamaindex.ai'),

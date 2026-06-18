@@ -4,6 +4,11 @@ namespace App\Providers;
 
 use App\Models\Offer;
 use App\Policies\Offer\OfferPolicy;
+use App\Services\Extraction\Contracts\Extractor;
+use App\Services\Extraction\DoclingExtractor;
+use App\Services\Extraction\ExtractionOrchestrator;
+use App\Services\Extraction\LlamaParseExtractor;
+use App\Services\Extraction\LocalPdfExtractor;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Date;
@@ -20,7 +25,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(ExtractionOrchestrator::class, function () {
+            return new ExtractionOrchestrator(
+                app(DoclingExtractor::class),
+                app(LlamaParseExtractor::class),
+                app(LocalPdfExtractor::class),
+            );
+        });
+
+        $this->app->bind(Extractor::class, DoclingExtractor::class);
     }
 
     /**

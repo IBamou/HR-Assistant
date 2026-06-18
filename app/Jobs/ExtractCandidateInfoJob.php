@@ -4,8 +4,7 @@ namespace App\Jobs;
 
 use App\Ai\Agents\CandidateInfoExtractor;
 use App\Services\AiClient;
-use App\Services\Extraction\LlamaParseService;
-use App\Services\Extraction\PdfExtractor;
+use App\Services\Extraction\ExtractionOrchestrator;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -13,15 +12,12 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 class ExtractCandidateInfoJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public const MAX_INPUT_LENGTH = 30000;
-
-    private const LLAMAPARSE_JOB_KEY = 'llamaparse_job_';
 
     public int $tries = 30;
 
@@ -33,7 +29,28 @@ class ExtractCandidateInfoJob implements ShouldQueue
     public function handle(): void
     {
         try {
-            $extractedText = $this->extractText();
+            $orchestrator = app(ExtractionOrchestrator::class);
+            $result = $orchestrator->extract($this->cvPath);
+
+            if ($result->isPending()) {
+                $this->release(5);
+
+                return;
+            }
+
+            if ($result->isFailed()) {
+                Log::error('All extractors failed', [
+                    'error' => $result->errorMessage,
+                ]);
+                Cache::put($this->cacheKey, [
+                    'status' => 'error',
+                    'message' => 'Could not extract candidate information. Please enter the details manually.',
+                ], 300);
+
+                return;
+            }
+
+            $extractedText = $result->content;
 
             if (strlen($extractedText) < 50) {
                 Cache::put($this->cacheKey, [
@@ -72,79 +89,6 @@ class ExtractCandidateInfoJob implements ShouldQueue
                 'message' => 'Could not extract candidate information. Please enter the details manually.',
             ], 300);
         }
-    }
-
-    private function extractText(): string
-    {
-        $llamaParse = app(LlamaParseService::class);
-
-        if ($llamaParse->isAvailable()) {
-            $llamaJobKey = self::LLAMAPARSE_JOB_KEY.md5($this->cvPath);
-            $jobId = Cache::get($llamaJobKey);
-
-            if ($jobId === null) {
-                $result = $llamaParse->startParsing($this->cvPath);
-
-                $resultStatus = $result['status'];
-
-                if ($resultStatus === 'started' && isset($result['job_id'])) {
-                    Cache::put($llamaJobKey, (string) $result['job_id'], 300);
-                }
-
-                if ($resultStatus === 'error') {
-                    Log::warning('LlamaParse failed to start, falling back to PdfExtractor', [
-                        'error' => $result['error'] ?? 'Unknown',
-                    ]);
-                    $fullPath = Storage::path($this->cvPath);
-                    $extractor = new PdfExtractor;
-
-                    return $this->truncateText($extractor->extract($fullPath));
-                }
-
-                $this->release(5);
-
-                return '';
-            }
-
-            $status = $llamaParse->checkJobStatus($jobId);
-
-            if ($status['status'] === 'completed') {
-                Cache::forget($llamaJobKey);
-
-                return $this->truncateText($status['result'] ?? '');
-            }
-
-            if (in_array($status['status'], ['failed', 'error'])) {
-                Cache::forget($llamaJobKey);
-                Log::warning('LlamaParse job failed, falling back to PdfExtractor', [
-                    'status' => $status['status'],
-                    'error' => $status['error'] ?? 'Unknown',
-                ]);
-                $fullPath = Storage::path($this->cvPath);
-                $extractor = new PdfExtractor;
-
-                return $this->truncateText($extractor->extract($fullPath));
-            }
-
-            $this->release(5);
-
-            return '';
-        }
-
-        $fullPath = Storage::path($this->cvPath);
-        $extractor = new PdfExtractor;
-
-        return $this->truncateText($extractor->extract($fullPath));
-    }
-
-    private function truncateText(string $text): string
-    {
-        if (strlen($text) <= self::MAX_INPUT_LENGTH) {
-            return $text;
-        }
-
-        return substr($text, 0, self::MAX_INPUT_LENGTH)
-            ."\n\n[... CV content truncated at ".self::MAX_INPUT_LENGTH.' characters. Only the beginning was included for processing. ...]';
     }
 
     /**
