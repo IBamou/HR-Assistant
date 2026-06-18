@@ -3,8 +3,9 @@
 use App\Ai\Agents\CandidateInfoExtractor;
 use App\Http\Controllers\OfferController;
 use App\Services\AiClient;
+use App\Services\Extraction\ExtractionOrchestrator;
 use App\Services\Extraction\LlamaParseService;
-use App\Services\Extraction\PdfExtractor;
+use App\Services\Extraction\LocalPdfExtractor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -29,35 +30,55 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
             $output = [];
 
-            // Step 1: LlamaParse
+            // Step 0: Orchestrator chain (Docling → LlamaParse → LocalPdfExtractor)
+            $orchestrator = app(ExtractionOrchestrator::class);
+            $result = $orchestrator->extract($path);
+
+            $output['orchestrator_extractor'] = $result->extractorName;
+            $output['orchestrator_status'] = $result->status;
+            $output['orchestrator_error'] = $result->errorMessage;
+
+            if ($result->isCompleted()) {
+                $extractedText = $result->content;
+            } elseif ($result->isPending()) {
+                $extractedText = '';
+                $output['orchestrator_pending'] = true;
+            } else {
+                $extractedText = '';
+            }
+
+            // Step 1: LlamaParse (direct test)
             $llamaParse = app(LlamaParseService::class);
+            $output['llama_available'] = $llamaParse->isAvailable();
             if ($llamaParse->isAvailable()) {
-                $result = $llamaParse->parsePdf($path);
-                $output['llama_status'] = $result['status'];
-                if ($result['status'] === 'success') {
-                    $output['llama_data'] = $result['data'] ?? [];
-                    $output['raw_keys'] = ($result['data'] ?? [])['raw_keys'] ?? [];
-                    $extractedText = ($result['data'] ?? [])['extracted_text'] ?? '';
-                    $output['extracted_text'] = $extractedText;
+                $llamaResult = $llamaParse->parsePdf($path);
+                $output['llama_status'] = $llamaResult['status'];
+                if ($llamaResult['status'] === 'success') {
+                    $output['llama_data'] = $llamaResult['data'] ?? [];
+                    $output['raw_keys'] = ($llamaResult['data'] ?? [])['raw_keys'] ?? [];
                 } else {
-                    $output['llama_error'] = $result['error'] ?? 'Unknown error';
-                    $fullPath = Storage::path($path);
-                    $extractor = new PdfExtractor;
-                    $extractedText = $extractor->extract($fullPath);
-                    $output['fallback_used'] = true;
+                    $output['llama_error'] = $llamaResult['error'] ?? 'Unknown error';
                 }
             } else {
                 $output['llama_status'] = 'unavailable';
-                $fullPath = Storage::path($path);
-                $extractor = new PdfExtractor;
-                $extractedText = $extractor->extract($fullPath);
-                $output['fallback_used'] = true;
+            }
+
+            // Step 2: LocalPdfExtractor (direct test)
+            $local = new LocalPdfExtractor;
+            $localResult = $local->extract(Storage::path($path));
+            $output['local_extractor_status'] = $localResult->status;
+            $output['local_extractor_length'] = strlen($localResult->content);
+            $output['local_extractor_truncated'] = mb_substr($localResult->content, 0, 500);
+
+            // Fallback text for Groq
+            if (empty($extractedText)) {
+                $extractedText = $localResult->content;
             }
 
             $output['extracted_text_length'] = strlen($extractedText);
             $output['extracted_text'] = $extractedText;
 
-            // Step 2: Groq
+            // Step 3: Groq
             if (! empty($extractedText) && strlen($extractedText) >= 50) {
                 try {
                     $agent = new CandidateInfoExtractor;

@@ -1,7 +1,9 @@
 <?php
 
+use App\DTOs\ExtractionResult;
 use App\Jobs\ExtractCandidateInfoJob;
-use App\Services\Extraction\LlamaParseService;
+use App\Services\AiClient;
+use App\Services\Extraction\ExtractionOrchestrator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
@@ -13,14 +15,13 @@ beforeEach(function () {
     $this->cvPath = 'pdfs/test.pdf';
 });
 
-test('stores error in cache when LlamaParse start throws', function () {
-    $llamaMock = mock(LlamaParseService::class);
-    $llamaMock->shouldReceive('isAvailable')->andReturn(true);
-    $llamaMock->shouldReceive('startParsing')
+test('stores error in cache when orchestrator fails', function () {
+    $orchestrator = mock(ExtractionOrchestrator::class);
+    $orchestrator->shouldReceive('extract')
         ->with($this->cvPath)
-        ->andThrow(new RuntimeException('Connection failed'));
+        ->andReturn(ExtractionResult::failed('TestExtractor', 'Something went wrong'));
 
-    app()->instance(LlamaParseService::class, $llamaMock);
+    app()->instance(ExtractionOrchestrator::class, $orchestrator);
 
     $job = new ExtractCandidateInfoJob($this->cvPath, $this->cacheKey);
     $job->tries = 1;
@@ -33,14 +34,60 @@ test('stores error in cache when LlamaParse start throws', function () {
     expect($cached['message'])->toBe('Could not extract candidate information. Please enter the details manually.');
 });
 
-test('falls back to PdfExtractor when LlamaParse unavailable', function () {
-    $llamaMock = mock(LlamaParseService::class);
-    $llamaMock->shouldReceive('isAvailable')->andReturn(false);
+test('stores warning when orchestrator returns empty', function () {
+    $orchestrator = mock(ExtractionOrchestrator::class);
+    $orchestrator->shouldReceive('extract')
+        ->with($this->cvPath)
+        ->andReturn(ExtractionResult::completed('', 'TestExtractor'));
 
-    app()->instance(LlamaParseService::class, $llamaMock);
+    app()->instance(ExtractionOrchestrator::class, $orchestrator);
 
     $job = new ExtractCandidateInfoJob($this->cvPath, $this->cacheKey);
     $job->tries = 1;
 
     $job->handle();
+
+    $cached = Cache::get($this->cacheKey);
+
+    expect($cached['status'])->toBe('warning');
+});
+
+test('releases job when orchestrator returns pending', function () {
+    $orchestrator = mock(ExtractionOrchestrator::class);
+    $orchestrator->shouldReceive('extract')
+        ->with($this->cvPath)
+        ->andReturn(ExtractionResult::pending('TestExtractor'));
+
+    app()->instance(ExtractionOrchestrator::class, $orchestrator);
+
+    $job = new ExtractCandidateInfoJob($this->cvPath, $this->cacheKey);
+    $job->tries = 1;
+
+    $job->handle();
+});
+
+test('stores success in cache when full pipeline succeeds', function () {
+    $orchestrator = mock(ExtractionOrchestrator::class);
+    $orchestrator->shouldReceive('extract')
+        ->with($this->cvPath)
+        ->andReturn(ExtractionResult::completed('John Doe has 5 years of experience as a developer.', 'DoclingExtractor'));
+
+    app()->instance(ExtractionOrchestrator::class, $orchestrator);
+
+    $aiClient = mock(AiClient::class);
+    $aiClient->shouldReceive('prompt')
+        ->andReturn('{"name":"John Doe","email":"john@example.com","skills":["PHP","Laravel"],"experience":["Developer at ACME"],"education":[],"certifications":[],"languages":[],"projects":[],"other_sections":[]}');
+
+    app()->instance(AiClient::class, $aiClient);
+
+    $job = new ExtractCandidateInfoJob($this->cvPath, $this->cacheKey);
+    $job->tries = 1;
+
+    $job->handle();
+
+    $cached = Cache::get($this->cacheKey);
+
+    expect($cached['status'])->toBe('success');
+    expect($cached['name'])->toBe('John Doe');
+    expect($cached['email'])->toBe('john@example.com');
 });
