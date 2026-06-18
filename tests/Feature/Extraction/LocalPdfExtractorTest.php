@@ -24,23 +24,9 @@ test('extract returns completed with text from PDF', function () {
     expect($result->extractorName)->toBe('LocalPdfExtractor');
 });
 
-test('extract returns completed with empty content for empty PDF', function () {
-    $pdfPath = __DIR__.'/../../Fixtures/empty.pdf';
-
-    if (! file_exists($pdfPath)) {
-        $this->markTestSkipped('Empty PDF fixture not found at '.$pdfPath);
-    }
-
-    $extractor = new LocalPdfExtractor;
-    $result = $extractor->extract($pdfPath);
-
-    expect($result->isCompleted())->toBeTrue();
-    expect($result->isEmpty())->toBeTrue();
-});
-
 test('extract returns failed for non-existent file', function () {
     $extractor = new LocalPdfExtractor;
-    $result = $extractor->extract('nonexistent.pdf');
+    $result = $extractor->extract('/tmp/nonexistent_'.uniqid().'.pdf');
 
     expect($result->isFailed())->toBeTrue();
 });

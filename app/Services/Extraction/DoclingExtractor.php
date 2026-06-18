@@ -36,7 +36,13 @@ class DoclingExtractor implements Extractor
             $stream = Storage::readStream($filePath);
 
             if (! $stream) {
-                return ExtractionResult::failed('DoclingExtractor', "Cannot read file: {$filePath}");
+                $realPath = is_file($filePath) ? $filePath : Storage::path($filePath);
+
+                if (! is_file($realPath)) {
+                    return ExtractionResult::failed('DoclingExtractor', "Cannot read file: {$filePath}");
+                }
+
+                $stream = fopen($realPath, 'rb');
             }
 
             $response = Http::timeout($this->timeout)
@@ -44,7 +50,7 @@ class DoclingExtractor implements Extractor
                 ->post("{$this->baseUrl}/parse");
 
             if (! $response->successful()) {
-                return ExtractionResult::failed('DoclingExtractor', "HTTP {$response->status()}: {$response->body()}");
+                return ExtractionResult::unavailable('DoclingExtractor', "HTTP {$response->status()}: {$response->body()}");
             }
 
             $data = $response->json();
@@ -55,7 +61,7 @@ class DoclingExtractor implements Extractor
 
             return ExtractionResult::completed((string) $data['content'], 'DoclingExtractor');
         } catch (\Exception $e) {
-            return ExtractionResult::failed('DoclingExtractor', $e->getMessage());
+            return ExtractionResult::unavailable('DoclingExtractor', $e->getMessage());
         }
     }
 }

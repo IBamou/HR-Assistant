@@ -34,9 +34,9 @@ class ExtractionResult
         return new self(self::FAILED, '', $extractorName, $errorMessage);
     }
 
-    public static function unavailable(string $extractorName): self
+    public static function unavailable(string $extractorName, ?string $errorMessage = null): self
     {
-        return new self(self::UNAVAILABLE, '', $extractorName);
+        return new self(self::UNAVAILABLE, '', $extractorName, $errorMessage);
     }
 
     public function isCompleted(): bool

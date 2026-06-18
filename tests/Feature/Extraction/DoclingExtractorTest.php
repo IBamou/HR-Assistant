@@ -3,13 +3,18 @@
 use App\DTOs\ExtractionResult;
 use App\Services\Extraction\DoclingExtractor;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
-    Storage::fake('local');
-    Storage::put('pdfs/test.pdf', 'fake PDF content');
+    $this->testPdf = tempnam(sys_get_temp_dir(), 'docling_test_').'.pdf';
+    file_put_contents($this->testPdf, 'fake PDF content');
 
     config()->set('services.docling.url', 'http://docling.test');
+});
+
+afterEach(function () {
+    if (file_exists($this->testPdf)) {
+        unlink($this->testPdf);
+    }
 });
 
 test('isAvailable returns true when health check passes', function () {
@@ -58,7 +63,7 @@ Developer at ACME',
     ]);
 
     $extractor = new DoclingExtractor;
-    $result = $extractor->extract('pdfs/test.pdf');
+    $result = $extractor->extract($this->testPdf);
 
     expect($result)->toBeInstanceOf(ExtractionResult::class);
     expect($result->isCompleted())->toBeTrue();
@@ -66,15 +71,15 @@ Developer at ACME',
     expect($result->extractorName)->toBe('DoclingExtractor');
 });
 
-test('extract returns failed on HTTP error', function () {
+test('extract returns unavailable on HTTP error', function () {
     Http::fake([
         'http://docling.test/parse' => Http::response([], 500),
     ]);
 
     $extractor = new DoclingExtractor;
-    $result = $extractor->extract('pdfs/test.pdf');
+    $result = $extractor->extract($this->testPdf);
 
-    expect($result->isFailed())->toBeTrue();
+    expect($result->isUnavailable())->toBeTrue();
     expect($result->errorMessage)->toContain('500');
 });
 
@@ -84,12 +89,12 @@ test('extract returns failed on invalid response', function () {
     ]);
 
     $extractor = new DoclingExtractor;
-    $result = $extractor->extract('pdfs/test.pdf');
+    $result = $extractor->extract($this->testPdf);
 
     expect($result->isFailed())->toBeTrue();
 });
 
-test('extract returns failed on connection error', function () {
+test('extract returns unavailable on connection error', function () {
     Http::fake([
         'http://docling.test/parse' => function () {
             throw new RuntimeException('Connection refused');
@@ -97,7 +102,7 @@ test('extract returns failed on connection error', function () {
     ]);
 
     $extractor = new DoclingExtractor;
-    $result = $extractor->extract('pdfs/test.pdf');
+    $result = $extractor->extract($this->testPdf);
 
-    expect($result->isFailed())->toBeTrue();
+    expect($result->isUnavailable())->toBeTrue();
 });

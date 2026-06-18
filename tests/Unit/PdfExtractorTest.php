@@ -1,15 +1,16 @@
 <?php
 
-use App\Services\Extraction\PdfExtractor;
+use App\Services\Extraction\LocalPdfExtractor;
 
-test('pdf extractor can be instantiated', function () {
-    $extractor = new PdfExtractor;
+test('local pdf extractor can be instantiated', function () {
+    $extractor = new LocalPdfExtractor;
 
-    expect($extractor)->toBeInstanceOf(PdfExtractor::class);
+    expect($extractor)->toBeInstanceOf(LocalPdfExtractor::class);
 });
 
-test('pdf extractor throws exception for non-existent file', function () {
-    $extractor = new PdfExtractor;
+test('local pdf extractor returns failed for non-existent file', function () {
+    $extractor = new LocalPdfExtractor;
+    $result = $extractor->extract('/nonexistent/file.pdf');
 
-    $extractor->extract('/nonexistent/file.pdf');
-})->throws(Exception::class);
+    expect($result->isFailed())->toBeTrue();
+});

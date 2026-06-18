@@ -33,9 +33,10 @@ class ExtractionOrchestrator
                 return $result;
             }
 
-            if ($result->isFailed()) {
+            if ($result->isFailed() || $result->isUnavailable()) {
                 Log::warning('Extractor failed, trying next', [
                     'extractor' => basename(str_replace('\\', '/', $extractor::class)),
+                    'status' => $result->status,
                     'error' => $result->errorMessage,
                 ]);
             }
