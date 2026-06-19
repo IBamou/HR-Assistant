@@ -51,7 +51,7 @@ new class extends Component {
 
     public int $pollCount = 0;
 
-    public const MAX_POLL_ATTEMPTS = 30;
+    public const MAX_POLL_ATTEMPTS = 20;
 
     public function mount(Offer $offer): void
     {
@@ -61,6 +61,10 @@ new class extends Component {
 
     public function uploadAndExtract(): void
     {
+        if ($this->isExtracting || $this->cvPath) {
+            return;
+        }
+
         $this->resetValidation();
         $this->hasWarning = false;
         $this->warningMessage = '';
@@ -135,6 +139,10 @@ new class extends Component {
 
     public function retryExtraction(): void
     {
+        if ($this->isExtracting || ! $this->cvPath) {
+            return;
+        }
+
         $this->hasWarning = false;
         $this->warningMessage = '';
         $this->isExtracting = true;
@@ -200,7 +208,7 @@ new class extends Component {
     }
 } ?>
 
-<div @if($isExtracting) wire:poll.2s="pollExtraction" @endif>
+<div @if($isExtracting) wire:poll.3s="pollExtraction" @endif>
     <div class="mb-6">
         <flux:button href="{{ route('offers.show', $offer) }}" variant="ghost" size="sm" class="mb-4">
             ← Back to offer

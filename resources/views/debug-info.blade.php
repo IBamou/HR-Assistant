@@ -118,6 +118,66 @@
                     </flux:card>
 
                     <flux:card>
+                        <flux:heading size="sm" class="mb-3">Analyse Against Offer</flux:heading>
+                        <form method="POST" action="{{ route('debug.info.analyse') }}" class="space-y-3">
+                            @csrf
+                            <input type="hidden" name="extracted_text" value="{{ $result['extracted_text'] ?? '' }}">
+                            <div>
+                                <flux:select name="offer_id" label="Select Offer">
+                                    @forelse ($offers as $offer)
+                                        <option value="{{ $offer->id }}">{{ $offer->title }}</option>
+                                    @empty
+                                        <option value="">No offers available</option>
+                                    @endforelse
+                                </flux:select>
+                            </div>
+                            <flux:button type="submit" variant="primary">Analyse</flux:button>
+                        </form>
+
+                        @if (isset($analysis_result))
+                            <div class="mt-4 space-y-3">
+                                <flux:heading size="sm" class="mb-1">Analysis Result — {{ $analysis_result['offer_title'] }}</flux:heading>
+
+                                @if ($analysis_result['parsed'] && ! isset($analysis_result['parsed']['error']))
+                                    <div class="flex items-center gap-3">
+                                        <flux:heading size="lg">{{ $analysis_result['parsed']['matching_score'] ?? 'N/A' }}%</flux:heading>
+                                        <flux:badge size="sm" class="
+                                            @php $rec = $analysis_result['parsed']['recommendation'] ?? ''; @endphp
+                                            {{ $rec === 'shortlisted' ? 'bg-green-100 text-green-700' : ($rec === 'on_hold' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700') }}
+                                        ">{{ ucfirst($rec ?: 'N/A') }}</flux:badge>
+                                    </div>
+                                    <div><span class="font-medium">Strengths:</span> {{ $analysis_result['parsed']['strengths'] ?? 'N/A' }}</div>
+                                    <div><span class="font-medium">Gaps:</span> {{ $analysis_result['parsed']['gaps'] ?? 'N/A' }}</div>
+                                    <div><span class="font-medium">Justification:</span> {{ $analysis_result['parsed']['justification'] ?? 'N/A' }}</div>
+                                    @if (count($analysis_result['parsed']['extracted_skills'] ?? []))
+                                        <div>
+                                            <span class="font-medium">Extracted Skills:</span>
+                                            @foreach ($analysis_result['parsed']['extracted_skills'] as $skill)
+                                                <flux:badge color="indigo" size="sm">{{ $skill }}</flux:badge>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                    @if (count($analysis_result['parsed']['missing_skills'] ?? []))
+                                        <div>
+                                            <span class="font-medium">Missing Skills:</span>
+                                            @foreach ($analysis_result['parsed']['missing_skills'] as $skill)
+                                                <flux:badge color="red" size="sm">{{ $skill }}</flux:badge>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                @else
+                                    <div class="rounded-lg bg-red-50 p-3 text-red-700 text-sm">Failed to parse AI response.</div>
+                                @endif
+
+                                <details @if (! $analysis_result['parsed']) open @endif>
+                                    <summary class="cursor-pointer text-sm font-medium text-zinc-600">Raw AI Response</summary>
+                                    <pre class="mt-2 bg-zinc-50 dark:bg-zinc-800 rounded-lg p-4 text-xs max-h-48 overflow-y-auto">{{ $analysis_result['raw'] }}</pre>
+                                </details>
+                            </div>
+                        @endif
+                    </flux:card>
+
+                    <flux:card>
                         <div class="flex gap-3">
                             <flux:button href="{{ route('debug.info') }}" variant="primary">Try Another PDF</flux:button>
                             <flux:button href="{{ route('offers.index') }}" variant="subtle">Back to Offers</flux:button>

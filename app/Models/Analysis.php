@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ProcessStatus;
+use App\Enums\Recommandation;
 use Database\Factories\AnalysisFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,13 +18,14 @@ class Analysis extends Model
     protected $fillable = [
         'application_id', 'user_id', 'matching_score', 'recommendation',
         'extracted_skills', 'missing_skills', 'strengths', 'gaps',
-        'justification', 'status',
+        'justification', 'raw_response', 'status',
     ];
 
     protected function casts(): array
     {
         return [
             'matching_score' => 'integer',
+            'recommendation' => Recommandation::class,
             'extracted_skills' => 'array',
             'missing_skills' => 'array',
             'status' => ProcessStatus::class,
