@@ -19,7 +19,7 @@ class ExtractCandidateInfoJob implements ShouldQueue
 
     public const MAX_INPUT_LENGTH = 30000;
 
-    public int $tries = 30;
+    public int $tries = 1;
 
     public function __construct(
         public string $cvPath,
@@ -32,14 +32,8 @@ class ExtractCandidateInfoJob implements ShouldQueue
             $orchestrator = app(ExtractionOrchestrator::class);
             $result = $orchestrator->extract($this->cvPath);
 
-            if ($result->isPending()) {
-                $this->release(5);
-
-                return;
-            }
-
             if ($result->isFailed()) {
-                Log::error('All extractors failed', [
+                Log::error('Extraction failed', [
                     'error' => $result->errorMessage,
                 ]);
                 Cache::put($this->cacheKey, [

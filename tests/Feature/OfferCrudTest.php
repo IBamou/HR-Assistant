@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\Analysis;
+use App\Models\Application;
+use App\Models\Candidate;
 use App\Models\Offer;
 use App\Models\User;
 use Livewire\Volt\Volt;
@@ -161,4 +164,26 @@ it('generates unique slug for duplicate titles', function () {
 
     expect($offer1->slug)->toBe('developpeur-php');
     expect($offer2->slug)->toBe('developpeur-php-1');
+});
+
+it('displays analysis badge on show page', function () {
+    $user = User::factory()->create();
+    $offer = Offer::factory()->create(['user_id' => $user->id]);
+    $candidate = Candidate::factory()->create(['user_id' => $user->id]);
+    $application = Application::factory()->create([
+        'offer_id' => $offer->id,
+        'candidate_id' => $candidate->id,
+        'user_id' => $user->id,
+    ]);
+    Analysis::factory()->create([
+        'application_id' => $application->id,
+        'user_id' => $user->id,
+        'matching_score' => 92,
+    ]);
+
+    actingAs($user);
+
+    $this->get(route('offers.show', $offer))
+        ->assertOk()
+        ->assertSee('92%');
 });

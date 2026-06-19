@@ -1,7 +1,9 @@
 <?php
 
 use App\Ai\Agents\CandidateInfoExtractor;
+use App\Ai\Agents\CvScorer;
 use App\Http\Controllers\OfferController;
+use App\Models\Offer;
 use App\Services\AiClient;
 use App\Services\Extraction\ExtractionOrchestrator;
 use App\Services\Extraction\LlamaParseService;
@@ -16,7 +18,9 @@ Route::view('/', 'welcome')->name('home');
 Route::middleware(['auth', 'verified'])->group(function () {
     if (app()->isLocal()) {
         Route::get('info', function () {
-            return view('debug-info');
+            $offers = Offer::where('user_id', auth()->id())->orderBy('title')->get(['id', 'title']);
+
+            return view('debug-info', ['offers' => $offers]);
         })->name('debug.info');
 
         Route::post('info', function (Request $request) {
@@ -103,8 +107,44 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 $output['groq_skipped'] = 'Text too short or empty';
             }
 
-            return view('debug-info', ['result' => $output]);
+            $offers = Offer::where('user_id', auth()->id())->orderBy('title')->get(['id', 'title']);
+
+            return view('debug-info', ['result' => $output, 'offers' => $offers]);
         });
+
+        Route::post('info/analyse', function (Request $request) {
+            $request->validate([
+                'extracted_text' => 'required|string|min:10',
+                'offer_id' => 'required|exists:offers,id',
+            ]);
+
+            $offer = Offer::where('user_id', auth()->id())->findOrFail($request->offer_id);
+            $extractedText = $request->extracted_text;
+
+            $agent = new CvScorer(
+                offerTitle: $offer->title,
+                offerDescription: $offer->description,
+                requiredSkills: implode(', ', $offer->required_skills ?? []),
+            );
+
+            $response = app(AiClient::class)->prompt($agent, $extractedText);
+            $parsed = AiClient::parseResponse($response);
+
+            return view('debug-info', [
+                'offers' => Offer::where('user_id', auth()->id())->orderBy('title')->get(['id', 'title']),
+                'analysis_result' => [
+                    'raw' => $response,
+                    'parsed' => $parsed,
+                    'offer_title' => $offer->title,
+                ],
+                'result' => [
+                    'extracted_text' => $extractedText,
+                    'extracted_text_length' => strlen($extractedText),
+                    'orchestrator_extractor' => 'N/A',
+                    'orchestrator_status' => 'completed',
+                ],
+            ]);
+        })->name('debug.info.analyse');
     }
     Route::view('dashboard', 'dashboard')->name('dashboard');
 
@@ -114,6 +154,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Volt::route('offers/{offer}', 'livewire.offers.show')->name('offers.show');
     Volt::route('offers/{offer}/edit', 'livewire.offers.edit')->name('offers.edit');
     Volt::route('offers/{offer}/submit', 'livewire.offers.submit')->name('offers.submit');
+    Volt::route('applications/{application}', 'livewire.applications.show')->name('applications.show');
 
     Route::delete('offers/{offer}', [OfferController::class, 'destroy'])->name('offers.destroy');
     Route::post('offers/{offer}/restore', [OfferController::class, 'restore'])->name('offers.restore')->withTrashed();

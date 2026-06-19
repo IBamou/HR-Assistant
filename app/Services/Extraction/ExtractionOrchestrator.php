@@ -29,17 +29,11 @@ class ExtractionOrchestrator
                 return $result;
             }
 
-            if ($result->isPending()) {
-                return $result;
-            }
-
-            if ($result->isFailed() || $result->isUnavailable()) {
-                Log::warning('Extractor failed, trying next', [
-                    'extractor' => basename(str_replace('\\', '/', $extractor::class)),
-                    'status' => $result->status,
-                    'error' => $result->errorMessage,
-                ]);
-            }
+            Log::warning('Extractor did not complete, trying next', [
+                'extractor' => basename(str_replace('\\', '/', $extractor::class)),
+                'status' => $result->status,
+                'error' => $result->errorMessage,
+            ]);
         }
 
         return ExtractionResult::failed(
